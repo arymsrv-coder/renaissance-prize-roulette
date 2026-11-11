@@ -1,0 +1,715 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RenAIssance Prize Roulette</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;800;900&family=Montserrat:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold: #e8b85a;
+    --gold-hi: #fff0b8;
+    --gold-lo: #9a6a1f;
+    --parchment: #ecd9a8;
+    --ink: #3a2210;
+    --teal: #19d3bb;
+    --font-display: "Cinzel", "Trajan Pro", "Cormorant Garamond", Georgia, serif;
+    --font-body: "Montserrat", system-ui, -apple-system, "Segoe UI", sans-serif;
+    /* one size knob: everything on the stage scales from the frame width */
+    --W: min(92vw, 520px, calc((100vh - 70px) / 2.05));
+  }
+  @supports (height: 100dvh) {
+    :root { --W: min(92vw, 520px, calc((100dvh - 70px) / 2.05)); }
+  }
+  * { box-sizing: border-box; }
+  html { background: #050a07; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    color: var(--parchment);
+    font-family: var(--font-body);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 10px 0 20px;
+    overflow-x: hidden;
+  }
+
+  /* ---------- backdrop: velvet curtain, tiled with mirrored copies so it fills any width ---------- */
+  .bg {
+    position: fixed; inset: 0; z-index: -1;
+    background: #06110a url(assets/curtain_tile.jpg) repeat-x;
+    background-size: auto 100%;
+    background-position: calc(50vw - 44.35vh) 0;
+  }
+  .bg::after {
+    content: ""; position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse 50% 42% at 50% 44%, rgba(255, 210, 120, .30), transparent 72%),
+      radial-gradient(ellipse at 50% 45%, rgba(0,0,0,0) 28%, rgba(0,0,0,.74) 100%),
+      rgba(0, 12, 6, .30);
+  }
+
+  /* ---------- title ---------- */
+  .title {
+    display: block;
+    width: min(calc(var(--W) * 1.18), 94vw); height: auto;
+    margin: 0 auto 4px;
+    filter: drop-shadow(0 4px 16px rgba(0,0,0,.75));
+  }
+
+  /* ---------- framed wheel ---------- */
+  .frameWrap {
+    position: relative;
+    width: var(--W);
+    aspect-ratio: 558 / 717;
+    margin-bottom: calc(var(--W) * .40);   /* room for the ribbon that hangs below the frame */
+  }
+  .frameShadow { position: absolute; inset: 1.5%; box-shadow: 0 22px 55px rgba(0,0,0,.75); }
+  .backing {
+    position: absolute; left: 10.57%; top: 8.93%; width: 78.49%; height: 81.73%;
+    background: radial-gradient(circle at 50% 52%, #1a3324 0%, #0a140e 68%, #040704 100%);
+    box-shadow: inset 0 0 40px #000;
+  }
+  canvas#wheel { position: absolute; left: 12%; top: 22.5%; width: 76%; height: auto; aspect-ratio: 1; display: block; }
+  .frameImg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
+  .pointer {
+    position: absolute; left: 50%; top: 10.4%; width: 11%;
+    transform: translateX(-50%); transform-origin: 50% 22%;
+    filter: drop-shadow(0 4px 5px rgba(0,0,0,.7));
+    z-index: 5; pointer-events: none;
+  }
+  .pointer svg { display: block; width: 100%; height: auto; }
+
+  .hub {
+    position: absolute; left: 50%; top: 52.1%; width: 17%; aspect-ratio: 1;
+    transform: translate(-50%, -50%);
+    border: 0; border-radius: 50%; padding: 0; cursor: pointer; z-index: 6;
+    display: grid; place-items: center;
+    background: radial-gradient(circle at 35% 28%, #6a4813 0%, #2b1b07 58%, #110a02 100%);
+    box-shadow: 0 0 0 3px #e0b25a, 0 0 0 5px #5a380c, 0 8px 16px rgba(0,0,0,.75), inset 0 0 16px rgba(0,0,0,.85);
+    animation: hubGlow 2.4s ease-in-out infinite;
+    transition: transform .15s;
+  }
+  .hub img {
+    position: absolute; left: 50%; top: 50%; height: 78%; width: auto;
+    transform: translate(-50%, -50%); display: block; pointer-events: none;
+    filter: drop-shadow(0 2px 3px rgba(0,0,0,.6));
+  }
+  .hub:not(:disabled):hover { transform: translate(-50%, -50%) scale(1.06); }
+  .hub:disabled { cursor: wait; animation: none; filter: saturate(.7); }
+  @keyframes hubGlow {
+    0%, 100% { box-shadow: 0 0 0 3px #e0b25a, 0 0 0 5px #5a380c, 0 8px 16px rgba(0,0,0,.75), inset 0 0 16px rgba(0,0,0,.85), 0 0 10px 2px rgba(255,190,80,.25); }
+    50%      { box-shadow: 0 0 0 3px #f6d58a, 0 0 0 5px #5a380c, 0 8px 16px rgba(0,0,0,.75), inset 0 0 16px rgba(0,0,0,.85), 0 0 26px 8px rgba(255,190,80,.6); }
+  }
+
+  /* ---------- parchment ribbon (used as the SPIN button and the win label) ---------- */
+  .ribbon {
+    --rw: 300px;
+    width: var(--rw); aspect-ratio: 754 / 335;
+    background: url(assets/ribbon.webp) center / 100% 100% no-repeat;
+    border: 0; padding: calc(var(--rw) * .078) 0 0;
+    display: flex; justify-content: center; align-items: flex-start;
+    font-family: var(--font-display); font-weight: 900; line-height: 1;
+    font-size: calc(var(--rw) * .085);
+    letter-spacing: .22em; text-indent: .22em; text-transform: uppercase;
+    color: var(--ink); text-shadow: 0 1px 0 rgba(255, 244, 210, .7);
+    filter: drop-shadow(0 10px 12px rgba(0,0,0,.65));
+  }
+  button.ribbon { cursor: pointer; position: absolute; left: 50%; top: 97%; z-index: 7; --rw: calc(var(--W) * .98);
+    transform: translateX(-50%); transition: transform .15s, filter .15s; }
+  button.ribbon:not(:disabled) { animation: ribbonPulse 2.4s ease-in-out infinite; }
+  button.ribbon:not(:disabled):hover { transform: translateX(-50%) translateY(-3px); filter: drop-shadow(0 14px 14px rgba(0,0,0,.6)) brightness(1.08); }
+  button.ribbon:not(:disabled):active { transform: translateX(-50%) translateY(1px) scale(.99); }
+  button.ribbon:disabled { cursor: wait; filter: drop-shadow(0 10px 12px rgba(0,0,0,.65)) saturate(.55) brightness(.8); }
+  @keyframes ribbonPulse {
+    0%, 100% { filter: drop-shadow(0 10px 12px rgba(0,0,0,.65)) drop-shadow(0 0 0 rgba(255,200,100,0)); }
+    50%      { filter: drop-shadow(0 10px 12px rgba(0,0,0,.65)) drop-shadow(0 0 14px rgba(255,200,100,.65)); }
+  }
+  .ribbon.tier {
+    --rw: min(82vw, 400px, 46vh);
+    font-size: calc(var(--rw) * .062); letter-spacing: .1em; text-indent: .1em;
+    padding-top: calc(var(--rw) * .088);
+  }
+
+  /* ---------- win scene ---------- */
+  #flash { position: fixed; inset: 0; opacity: 0; pointer-events: none; z-index: 40; }
+  #win {
+    --c: #ffd27a;
+    position: fixed; inset: 0; z-index: 30;
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    background: radial-gradient(ellipse at 50% 42%, rgba(14, 46, 30, .80), rgba(2, 6, 4, .96) 78%);
+    cursor: pointer; user-select: none; overflow: hidden; text-align: center;
+  }
+  #win.show { display: flex; animation: fadein .35s ease-out; }
+  .rays {
+    position: absolute; left: 50%; top: 36%; width: 170vmax; height: 170vmax; margin: -85vmax 0 0 -85vmax;
+    background: repeating-conic-gradient(from 0deg, rgba(255,214,130,0) 0 9deg, rgba(255,214,130,.13) 9deg 18deg);
+    -webkit-mask-image: radial-gradient(circle, #000 0%, transparent 52%);
+            mask-image: radial-gradient(circle, #000 0%, transparent 52%);
+    animation: rotate 60s linear infinite; pointer-events: none; opacity: 0; transition: opacity 1s;
+  }
+  #win.touched .rays { opacity: 1; }
+
+  .armsWrap {
+    --aw: min(130vw, 1000px, 125vh);
+    position: relative; width: 100vw; overflow: hidden;
+    height: calc(var(--aw) * .6654 * .60);
+    -webkit-mask-image: linear-gradient(to bottom, #000 72%, transparent 100%);
+            mask-image: linear-gradient(to bottom, #000 72%, transparent 100%);
+  }
+  .armsInner {
+    position: absolute; left: 50%; top: 0; width: var(--aw); aspect-ratio: 1993 / 1326; transform: translateX(-50%);
+    /* the illustrations are cut flat at their outer edges (made to bleed off-screen): feather them on wide screens */
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 9%, #000 91%, transparent 100%);
+            mask-image: linear-gradient(to right, transparent 0%, #000 9%, #000 91%, transparent 100%);
+  }
+  .armBox { position: absolute; }
+  .armBox img { display: block; width: 100%; height: auto; }
+  .armBox.human { left: 0; top: 0; width: 56.35%; }
+  .armBox.robot { left: 48%; top: 26.5%; width: 52%; }
+  .armBox.human img { animation: bobA 3.6s ease-in-out infinite; }
+  .armBox.robot img { animation: bobB 3.6s ease-in-out infinite; }
+  .spark {
+    --sx: 48.6%; --sy: 33.2%;
+    position: absolute; left: var(--sx); top: var(--sy); width: 24%; aspect-ratio: 1;
+    transform: translate(-50%, -50%) scale(0); opacity: 0; pointer-events: none; mix-blend-mode: screen;
+    background: radial-gradient(circle, #fff 0%, rgba(255,240,190,.95) 9%, rgba(255,205,100,.55) 26%, rgba(255,170,60,.12) 48%, transparent 66%);
+  }
+  .spark::before, .spark::after {
+    content: ""; position: absolute; left: 0; top: 47%; width: 100%; height: 6%;
+    background: linear-gradient(90deg, transparent, #fff 50%, transparent);
+    border-radius: 50%;
+  }
+  .spark::after { transform: rotate(90deg); }
+
+  .result { margin-top: -2vh; display: flex; flex-direction: column; align-items: center; gap: 4px; position: relative; }
+  .kicker {
+    font-family: var(--font-body); font-weight: 600; letter-spacing: .5em; text-indent: .5em;
+    font-size: clamp(.8rem, 2.6vw, 1.15rem); color: var(--parchment); text-transform: uppercase;
+    opacity: 0; transform: translateY(8px); transition: opacity .5s, transform .5s;
+  }
+  .amount {
+    font-family: var(--font-display); font-weight: 900; line-height: 1.05;
+    font-size: clamp(3rem, min(16vw, 14vh), 8rem); font-variant-numeric: tabular-nums;
+    background: linear-gradient(180deg, #fff6cf 0%, #f6cf70 38%, #d79a35 68%, #8f5a16 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 0 16px color-mix(in srgb, var(--c) 70%, transparent)) drop-shadow(0 5px 0 rgba(0,0,0,.45));
+    opacity: 0;
+  }
+  .result .ribbon.tier { opacity: 0; transform: translateY(10px) scale(.9); transition: opacity .5s .25s, transform .5s .25s cubic-bezier(.2,1.5,.4,1); }
+  #win.touched .kicker { opacity: 1; transform: none; }
+  #win.touched .result .ribbon.tier { opacity: 1; transform: none; }
+  .again { position: absolute; bottom: 16px; left: 0; right: 0; font-size: .85rem; letter-spacing: .25em; text-transform: uppercase; color: rgba(236,217,168,.65); opacity: 0; transition: opacity .6s 1.6s; }
+  #win.touched .again { opacity: 1; }
+
+  #confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 50; }
+
+  /* ---------- intro: the key art, tap to enter ---------- */
+  #intro {
+    position: fixed; inset: 0; z-index: 60; background: #04070a; overflow: hidden; cursor: pointer;
+    display: flex; align-items: flex-end; justify-content: center;
+    transition: opacity .8s ease, transform .8s ease;
+  }
+  #intro.leaving { opacity: 0; transform: scale(1.06); pointer-events: none; }
+  #intro .art {
+    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 45%;
+    animation: kenburns 14s ease-out both;
+  }
+  #intro::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(to top, rgba(0,0,0,.85) 0%, rgba(0,0,0,0) 38%),
+                radial-gradient(ellipse at 50% 45%, rgba(0,0,0,0) 55%, rgba(0,0,0,.55) 100%);
+  }
+  #intro .enter {
+    position: relative; z-index: 2; margin-bottom: max(6vh, 28px);
+    font-family: var(--font-display); font-weight: 800; font-size: clamp(1rem, 2.4vw, 1.4rem);
+    letter-spacing: .38em; text-indent: .38em; text-transform: uppercase; color: var(--gold-hi);
+    background: rgba(8, 20, 13, .55); border: 1.5px solid var(--gold); border-radius: 999px;
+    padding: .9em 2.2em; cursor: pointer; backdrop-filter: blur(4px);
+    box-shadow: 0 0 0 4px rgba(232,184,90,.15), 0 10px 30px rgba(0,0,0,.6);
+    animation: enterPulse 2.2s ease-in-out infinite;
+  }
+  #intro .enter:hover { background: rgba(232,184,90,.22); }
+  @keyframes kenburns { from { transform: scale(1.12); } to { transform: scale(1); } }
+  @keyframes enterPulse {
+    0%, 100% { box-shadow: 0 0 0 4px rgba(232,184,90,.12), 0 10px 30px rgba(0,0,0,.6), 0 0 0 rgba(255,200,100,0); }
+    50%      { box-shadow: 0 0 0 4px rgba(232,184,90,.30), 0 10px 30px rgba(0,0,0,.6), 0 0 28px rgba(255,200,100,.55); }
+  }
+  /* portrait screens: show the whole 16:9 art, letterboxed, instead of cropping out the hands and title */
+  @media (max-aspect-ratio: 1/1) {
+    #intro .art { object-fit: contain; object-position: 50% 42%; height: 100%;
+      -webkit-mask-image: linear-gradient(to bottom, transparent 30%, #000 40%, #000 62%, transparent 72%);
+              mask-image: linear-gradient(to bottom, transparent 30%, #000 40%, #000 62%, transparent 72%); }
+  }
+  @media (prefers-reduced-motion: reduce) { #intro .art, #intro .enter { animation: none; } }
+
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  @keyframes fadein { from { opacity: 0 } to { opacity: 1 } }
+  @keyframes rotate { to { transform: rotate(360deg) } }
+  @keyframes bobA { 0%, 100% { transform: translate(0, 0) } 50% { transform: translate(5px, -5px) } }
+  @keyframes bobB { 0%, 100% { transform: translate(0, 0) } 50% { transform: translate(-5px, 5px) } }
+  @media (prefers-reduced-motion: reduce) {
+    .hub, button.ribbon:not(:disabled), .armBox img, .rays { animation: none !important; }
+  }
+</style>
+</head>
+<body>
+  <div class="bg"></div>
+
+  <img class="title" src="assets/title.webp" alt="RenAIssance — Rebirth of mind, dawn of machine">
+
+  <div class="frameWrap" id="frameWrap">
+    <div class="frameShadow"></div>
+    <div class="backing"></div>
+    <canvas id="wheel" aria-label="Prize wheel"></canvas>
+    <img class="frameImg" src="assets/frame.webp" alt="">
+    <div class="pointer" id="pointer" aria-hidden="true">
+      <svg viewBox="0 0 60 90">
+        <defs>
+          <linearGradient id="gp" x1="0" x2="1">
+            <stop offset="0" stop-color="#fbe5a0"/><stop offset=".5" stop-color="#d49a33"/><stop offset="1" stop-color="#7a4d12"/>
+          </linearGradient>
+        </defs>
+        <path d="M30 88 L6 38 C1 26 6 7 30 3 C54 7 59 26 54 38 Z" fill="url(#gp)" stroke="#3f2606" stroke-width="2.5" stroke-linejoin="round"/>
+        <circle cx="30" cy="30" r="8.5" fill="#120d06" stroke="#fbe5a0" stroke-width="2"/>
+        <circle cx="30" cy="30" r="3" fill="#19d3bb"/>
+      </svg>
+    </div>
+    <button class="hub" id="hub" aria-label="Spin the wheel"><img src="assets/logo.webp" alt=""></button>
+    <button class="ribbon" id="spin">Spin</button>
+  </div>
+
+  <div id="flash"></div>
+
+  <div id="win" role="status" aria-live="polite">
+    <div class="rays"></div>
+    <div class="armsWrap">
+      <div class="armsInner" id="armsInner">
+        <div class="armBox human" id="armHuman"><img src="assets/human-arm.svg" alt=""></div>
+        <div class="armBox robot" id="armRobot"><img src="assets/robot-arm.svg" alt=""></div>
+        <div class="spark" id="spark"></div>
+      </div>
+    </div>
+    <div class="result">
+      <div class="kicker">You have won</div>
+      <div class="amount" id="winAmount">₱0</div>
+      <div class="ribbon tier"><span id="winTier"></span></div>
+    </div>
+    <div class="again">Tap anywhere to continue</div>
+  </div>
+  <canvas id="confetti"></canvas>
+  <div class="sr" id="sr" aria-live="polite"></div>
+
+  <div id="intro">
+    <img class="art" src="assets/keyart.jpg" alt="RenAIssance — a human hand and a robotic hand reaching toward each other">
+    <button class="enter" id="enter">Tap to play</button>
+  </div>
+
+<script>
+/*
+ * Odds — each slice has a `weight` (percent chance) and its size on the wheel
+ * is proportional to it, so what you see is what you get. Edit freely (> 0).
+ *
+ *   ₱20  30%   ₱10  28%   ₱5  15%   ₱1  10%
+ *   ₱50   9%   ₱100  5%   ₱500 2.5%  ₱1000 0.5%
+ */
+const SLICES = [
+  { prize: 20,   weight: 15 },
+  { prize: 5,    weight: 8 },
+  { prize: 10,   weight: 14 },
+  { prize: 50,   weight: 9 },
+  { prize: 1,    weight: 5 },
+  { prize: 20,   weight: 15 },
+  { prize: 100,  weight: 5 },
+  { prize: 10,   weight: 14 },
+  { prize: 500,  weight: 2.5 },
+  { prize: 5,    weight: 7 },
+  { prize: 1000, weight: 0.5 },
+  { prize: 1,    weight: 5 },
+];
+
+// Palette drawn from the RenAIssance artwork: robe crimson, gold leaf, AI teal, robot steel, emerald velvet, copper, parchment.
+// a = rim colour, b = centre colour, fg = label colour
+const LOOK = {
+  1000: { a: "#fff0b0", b: "#e0a82e", fg: "#2b1a02" },
+  500:  { a: "#cf3038", b: "#7d1219", fg: "#fff3d6" },
+  100:  { a: "#25d3ba", b: "#0d7f78", fg: "#03231f" },
+  50:   { a: "#6794b2", b: "#2b5069", fg: "#f2f9ff" },
+  20:   { a: "#34a06c", b: "#145a38", fg: "#f4ffe9" },
+  10:   { a: "#e8853d", b: "#a8451a", fg: "#fff4e0" },
+  5:    { a: "#f1deaa", b: "#c9a463", fg: "#3a2410" },
+  1:    { a: "#44301f", b: "#1b120a", fg: "#e9c66d" },
+};
+
+const TOTAL = SLICES.reduce((s, x) => s + x.weight, 0);
+let acc = 0;
+for (const s of SLICES) {
+  s.start = (acc / TOTAL) * 360;
+  acc += s.weight;
+  s.end = (acc / TOTAL) * 360;
+}
+const peso = n => "₱" + n.toLocaleString("en-US");
+const $ = id => document.getElementById(id);
+
+// --- secure randomness ---
+function rand() { const a = new Uint32Array(1); crypto.getRandomValues(a); return a[0] / 4294967296; }
+function pickSlice() {
+  let r = rand() * TOTAL;
+  for (const s of SLICES) if ((r -= s.weight) < 0) return s;
+  return SLICES[SLICES.length - 1];
+}
+
+// ================= wheel =================
+const canvas = $("wheel"), ctx = canvas.getContext("2d");
+let rotation = 0;            // degrees clockwise; slice angles are measured from 12 o'clock
+let spinState = null;
+let partyUntil = 0;          // rim lights go wild until this time
+const rad = d => ((d - 90) * Math.PI) / 180;
+
+function roundRect(c, x, y, w, h, r) {
+  c.beginPath();
+  c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r);
+  c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath();
+}
+
+function draw(now) {
+  const dpr = window.devicePixelRatio || 1, S = canvas.clientWidth;
+  if (!S) return;
+  if (canvas.width !== Math.round(S * dpr)) canvas.width = canvas.height = Math.round(S * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, S, S);
+
+  const c = S / 2, ringO = c - 1, ringW = S * 0.052, R = ringO - ringW;
+  ctx.save();
+  ctx.translate(c, c);
+
+  // --- rotating disc ---
+  ctx.save();
+  ctx.rotate((rotation * Math.PI) / 180);
+  for (const s of SLICES) {
+    const L = LOOK[s.prize];
+    const g = ctx.createRadialGradient(0, 0, R * 0.12, 0, 0, R);
+    g.addColorStop(0, L.b); g.addColorStop(1, L.a);
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, R, rad(s.start), rad(s.end)); ctx.closePath();
+    ctx.fillStyle = g; ctx.fill();
+    ctx.lineWidth = 1.6; ctx.strokeStyle = "rgba(235, 190, 95, .85)"; ctx.stroke();
+
+    const span = s.end - s.start, mid = (s.start + s.end) / 2;
+    if (span >= 6) {
+      ctx.save(); ctx.rotate(rad(mid));
+      const fs = Math.max(11, Math.min(S * 0.074, span * 1.05));
+      ctx.font = `800 ${fs}px Cinzel, "Times New Roman", Georgia, serif`;
+      ctx.textBaseline = "middle"; ctx.textAlign = "right";
+      const x = R - S * 0.035;
+      ctx.fillStyle = "rgba(0,0,0,.38)"; ctx.fillText(peso(s.prize), x + 1, 1.5);
+      ctx.fillStyle = L.fg;              ctx.fillText(peso(s.prize), x, 0);
+      ctx.restore();
+    }
+  }
+  // the jackpot sliver is too thin for text: give it a gold pennant that lies across its neighbours
+  for (const s of SLICES) {
+    if (s.end - s.start >= 6) continue;
+    const L = LOOK[s.prize], mid = (s.start + s.end) / 2;
+    ctx.save(); ctx.rotate(rad(mid));
+    const h = S * 0.047, x0 = R * 0.27, x1 = R * 0.93;
+    const pg = ctx.createLinearGradient(0, -h / 2, 0, h / 2);
+    pg.addColorStop(0, "#fff3c0"); pg.addColorStop(.5, "#f0bf4c"); pg.addColorStop(1, "#b97f1d");
+    ctx.shadowColor = "rgba(255, 215, 110, .9)"; ctx.shadowBlur = S * 0.03;
+    roundRect(ctx, x0, -h / 2, x1 - x0, h, h / 2); ctx.fillStyle = pg; ctx.fill();
+    ctx.shadowBlur = 0; ctx.lineWidth = 1.2; ctx.strokeStyle = "#5a3a0a"; ctx.stroke();
+    ctx.font = `900 ${h * 0.62}px Cinzel, "Times New Roman", Georgia, serif`;
+    ctx.textBaseline = "middle"; ctx.textAlign = "right"; ctx.fillStyle = L.fg;
+    ctx.fillText(peso(s.prize), x1 - h * 0.5, 0.5);
+    ctx.restore();
+  }
+  ctx.restore();
+
+  // --- static depth: shade near the rim and around the hub ---
+  const sh = ctx.createRadialGradient(0, 0, R * 0.78, 0, 0, R);
+  sh.addColorStop(0, "rgba(0,0,0,0)"); sh.addColorStop(1, "rgba(0,0,0,.38)");
+  ctx.beginPath(); ctx.arc(0, 0, R, 0, 6.2832); ctx.fillStyle = sh; ctx.fill();
+  const hb = ctx.createRadialGradient(0, 0, 0, 0, 0, R * 0.3);
+  hb.addColorStop(0, "rgba(0,0,0,.55)"); hb.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.beginPath(); ctx.arc(0, 0, R * 0.3, 0, 6.2832); ctx.fillStyle = hb; ctx.fill();
+
+  // --- gilded rim ---
+  const rg = ctx.createRadialGradient(0, 0, R, 0, 0, ringO);
+  rg.addColorStop(0, "#6b4411"); rg.addColorStop(.22, "#f4d780"); rg.addColorStop(.5, "#c28a2c");
+  rg.addColorStop(.8, "#f7dc92"); rg.addColorStop(1, "#6a410f");
+  ctx.beginPath(); ctx.arc(0, 0, ringO, 0, 6.2832); ctx.arc(0, 0, R, 0, 6.2832, true);
+  ctx.fillStyle = rg; ctx.fill();
+  ctx.lineWidth = 1.5; ctx.strokeStyle = "#2c1a05";
+  ctx.beginPath(); ctx.arc(0, 0, ringO, 0, 6.2832); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, 0, R, 0, 6.2832); ctx.stroke();
+
+  // --- rim lights: slow alternate when idle, chase while spinning, flash when someone wins ---
+  const N = 28, rb = (R + ringO) / 2, br = ringW * 0.27;
+  const mode = spinState ? "spin" : now < partyUntil ? "party" : "idle";
+  for (let i = 0; i < N; i++) {
+    let lit;
+    if (mode === "spin") lit = ((i - Math.floor(now / 55)) % 3 + 3) % 3 === 0;
+    else if (mode === "party") lit = Math.floor(now / 150) % 2 === 0 ? true : i % 2 === 0;
+    else lit = (i + Math.floor(now / 500)) % 2 === 0;
+    const a = (i / N) * 6.2832, x = Math.cos(a) * rb, y = Math.sin(a) * rb;
+    ctx.beginPath(); ctx.arc(x, y, br, 0, 6.2832);
+    if (lit) {
+      const bg = ctx.createRadialGradient(x, y, 0, x, y, br);
+      bg.addColorStop(0, "#ffffff"); bg.addColorStop(.5, "#ffe9a0"); bg.addColorStop(1, "#e6a73a");
+      ctx.shadowColor = "#ffcf66"; ctx.shadowBlur = ringW * 0.9; ctx.fillStyle = bg;
+    } else { ctx.shadowBlur = 0; ctx.fillStyle = "#6b4712"; }
+    ctx.fill();
+  }
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+// ================= spin =================
+const easeOut = t => 1 - Math.pow(1 - t, 4);
+const pointerEl = $("pointer");
+let lastIdx = -1, lastTick = 0;
+
+function sliceIndexAt(deg) {
+  for (let i = 0; i < SLICES.length; i++) if (deg >= SLICES[i].start && deg < SLICES[i].end) return i;
+  return 0;
+}
+function trackTicks() {
+  const idx = sliceIndexAt(((-rotation % 360) + 360) % 360);
+  if (idx === lastIdx) return;
+  lastIdx = idx;
+  const n = performance.now();
+  if (n - lastTick < 45) return;          // at full speed the wheel crosses dozens of pegs per second
+  lastTick = n;
+  if (!reduceMotion) pointerEl.animate(
+    [{ transform: "translateX(-50%) rotate(0)" }, { transform: "translateX(-50%) rotate(-17deg)" }, { transform: "translateX(-50%) rotate(0)" }],
+    { duration: 110 });
+  tickSound();
+}
+
+function loop(now) {
+  if (spinState) {
+    const t = Math.min(1, (now - spinState.t0) / spinState.dur);
+    rotation = spinState.from + spinState.delta * easeOut(t);
+    trackTicks();
+    if (t >= 1) {
+      const s = spinState.slice;
+      spinState = null;
+      rotation = ((rotation % 360) + 360) % 360;
+      finish(s);
+    }
+  }
+  draw(now);
+  requestAnimationFrame(loop);
+}
+
+const hub = $("hub"), spinBtn = $("spin");
+function setBusy(b) { hub.disabled = spinBtn.disabled = b; }
+
+function spin() {
+  if (spinState) return;
+  dismissWin();
+  setBusy(true);
+  try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); } catch (e) {}
+
+  const slice = pickSlice();                                   // outcome is drawn first, fairly…
+  const span = slice.end - slice.start;
+  const target = slice.start + span * (0.1 + rand() * 0.8);    // …then the wheel stops inside that slice, never on a line
+  const from = rotation;
+  const delta = ((((-target - from) % 360) + 360) % 360) + 360 * (5 + Math.floor(rand() * 3));
+  spinState = { from, delta, slice, t0: performance.now(), dur: 5600 };
+}
+
+function finish(slice) {
+  setBusy(false);
+  $("sr").textContent = "You won " + peso(slice.prize);
+  celebrate(slice.prize);
+}
+hub.addEventListener("click", spin);
+spinBtn.addEventListener("click", spin);
+
+// ================= audio =================
+let audio;
+function tickSound() {
+  if (!audio || audio.state !== "running") return;
+  const t = audio.currentTime, o = audio.createOscillator(), g = audio.createGain();
+  o.type = "square"; o.frequency.value = 1500;
+  g.gain.setValueAtTime(0.035, t); g.gain.exponentialRampToValueAtTime(0.0008, t + 0.03);
+  o.connect(g).connect(audio.destination); o.start(t); o.stop(t + 0.035);
+}
+function chime(level) {
+  try {
+    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+    const notes = [523.25, 659.25, 783.99, 1046.5, 1318.5, 1568];
+    const count = Math.min(notes.length, 3 + level), t = audio.currentTime;
+    for (let i = 0; i < count; i++) {
+      const o = audio.createOscillator(), g = audio.createGain(), s = t + i * 0.09;
+      o.type = "triangle"; o.frequency.value = notes[i];
+      g.gain.setValueAtTime(0, s); g.gain.linearRampToValueAtTime(0.18, s + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, s + 0.6);
+      o.connect(g).connect(audio.destination); o.start(s); o.stop(s + 0.65);
+    }
+  } catch (e) {}
+}
+
+// ================= confetti =================
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const cv = $("confetti"), cctx = cv.getContext("2d");
+let particles = [], confettiRunning = false;
+function sizeConfetti() {
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = Math.round(innerWidth * dpr); cv.height = Math.round(innerHeight * dpr);
+  cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+// brand colours, gold-heavy
+const CONFETTI = ["#ffd86b", "#ffd86b", "#f6c453", "#fff0b8", "#d79a35", "#c4622d", "#cf3038", "#34a06c", "#19d3bb", "#ecd9a8"];
+
+function burst(x, y, count, angle, spread, speed) {
+  for (let i = 0; i < count; i++) {
+    const a = ((angle + (rand() - 0.5) * spread - 90) * Math.PI) / 180, v = speed * (0.45 + rand() * 0.75);
+    particles.push({
+      x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v,
+      rot: rand() * 6.28, vr: (rand() - 0.5) * 0.4, w: 6 + rand() * 8, h: 4 + rand() * 6,
+      color: CONFETTI[(rand() * CONFETTI.length) | 0],
+      shape: rand() < 0.2 ? 1 : rand() < 0.3 ? 2 : 0,      // 0 rect, 1 round, 2 diamond
+      wobble: rand() * 6.28, life: 0, ttl: 140 + rand() * 120,
+    });
+  }
+  if (!confettiRunning) { confettiRunning = true; requestAnimationFrame(tickConfetti); }
+}
+function tickConfetti() {
+  cctx.clearRect(0, 0, innerWidth, innerHeight);
+  for (const p of particles) {
+    p.life++; p.vy += 0.22; p.vx *= 0.985; p.vy *= 0.985;
+    p.x += p.vx + Math.sin(p.wobble += 0.1) * 0.6; p.y += p.vy; p.rot += p.vr;
+    cctx.save();
+    cctx.globalAlpha = p.life > p.ttl - 30 ? Math.max(0, (p.ttl - p.life) / 30) : 1;
+    cctx.translate(p.x, p.y); cctx.rotate(p.rot); cctx.scale(1, Math.cos(p.wobble));
+    cctx.fillStyle = p.color;
+    if (p.shape === 1) { cctx.beginPath(); cctx.arc(0, 0, p.w / 2, 0, 6.28); cctx.fill(); }
+    else if (p.shape === 2) { cctx.beginPath(); cctx.moveTo(0, -p.w / 1.6); cctx.lineTo(p.w / 2.2, 0); cctx.lineTo(0, p.w / 1.6); cctx.lineTo(-p.w / 2.2, 0); cctx.fill(); }
+    else cctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+    cctx.restore();
+  }
+  particles = particles.filter(p => p.life < p.ttl && p.y < innerHeight + 40);
+  if (particles.length) requestAnimationFrame(tickConfetti);
+  else { confettiRunning = false; cctx.clearRect(0, 0, innerWidth, innerHeight); }
+}
+
+// ================= the win scene: two hands reach, touch, spark =================
+function tierOf(prize) {
+  if (prize >= 1000) return { level: 5, label: "★ Jackpot ★", flashes: 6, confetti: 5 };
+  if (prize >= 500)  return { level: 4, label: "Huge win!",   flashes: 5, confetti: 4 };
+  if (prize >= 100)  return { level: 3, label: "Big win!",    flashes: 4, confetti: 3 };
+  if (prize >= 50)   return { level: 2, label: "Great win!",  flashes: 3, confetti: 2 };
+  if (prize >= 10)   return { level: 1, label: "Nice one!",   flashes: 2, confetti: 1.4 };
+  return               { level: 0, label: "Winner!",         flashes: 1, confetti: 1 };
+}
+
+const win = $("win");
+let timers = [];
+const later = (fn, ms) => timers.push(setTimeout(fn, ms));
+const clearTimers = () => { timers.forEach(clearTimeout); timers = []; };
+
+function celebrate(prize) {
+  clearTimers();
+  const tier = tierOf(prize), color = LOOK[prize].a;
+  const slideMs = reduceMotion ? 0 : 1000;
+
+  win.style.setProperty("--c", prize === 1 ? "#ffe9a8" : color);
+  win.classList.remove("touched");
+  $("winTier").textContent = tier.label;
+  const amt = $("winAmount");
+  amt.style.opacity = 0; amt.textContent = peso(0);
+  win.classList.add("show");
+
+  if (!reduceMotion) {
+    const ease = "cubic-bezier(.2,.85,.25,1)";
+    $("armHuman").animate([{ transform: "translateX(-78%)" }, { transform: "none" }], { duration: slideMs, easing: ease, fill: "backwards" });
+    $("armRobot").animate([{ transform: "translateX(78%)" }, { transform: "none" }], { duration: slideMs, easing: ease, delay: 90, fill: "backwards" });
+  }
+  later(() => touch(prize, tier), slideMs + (reduceMotion ? 0 : 120));
+}
+
+function touch(prize, tier) {
+  win.classList.add("touched");
+  const W = innerWidth, H = innerHeight;
+  const spark = $("spark"), r = spark.getBoundingClientRect();
+  const sx = r.left + r.width / 2, sy = r.top + r.height / 2;
+
+  // the number
+  const amt = $("winAmount");
+  amt.style.opacity = 1;
+  const t0 = performance.now();
+  (function count(now) {
+    const t = Math.min(1, (now - t0) / 900);
+    amt.textContent = peso(Math.round(prize * (1 - Math.pow(1 - t, 3))));
+    if (t < 1) requestAnimationFrame(count);
+  })(t0);
+
+  if (!reduceMotion) {
+    amt.animate([{ transform: "scale(.4)", opacity: 0 }, { transform: "scale(1.08)", opacity: 1, offset: .7 }, { transform: "scale(1)", opacity: 1 }],
+                { duration: 700, easing: "cubic-bezier(.2,1.2,.4,1)" });
+    // the touch: spark flares between the fingertips
+    spark.animate(
+      [{ transform: "translate(-50%,-50%) scale(0)", opacity: 0 },
+       { transform: "translate(-50%,-50%) scale(1.25)", opacity: 1, offset: .3 },
+       { transform: "translate(-50%,-50%) scale(.55)", opacity: .75 }],
+      { duration: 900, easing: "ease-out", fill: "forwards" });
+    $("armsInner").animate([{ transform: "translateX(-50%) scale(1)" }, { transform: "translateX(-50%) scale(1.035)" }, { transform: "translateX(-50%) scale(1)" }], { duration: 450 });
+
+    // screen flash in the prize colour
+    const fl = $("flash");
+    fl.style.background = prize === 1 ? "#fff4d0" : LOOK[prize].a;
+    fl.animate([{ opacity: 0 }, { opacity: 0.8 }, { opacity: 0 }], { duration: 260, iterations: tier.flashes, easing: "ease-out" });
+
+    // confetti: from the fingertips, plus cannons and rain scaled by tier
+    const n = tier.confetti;
+    burst(sx, sy, 60 * n, 0, 360, 13);
+    burst(0, H * 0.85, 60 * n, 60, 40, 22);
+    burst(W, H * 0.85, 60 * n, -60, 40, 22);
+    for (let i = 1; i <= Math.ceil(n); i++) {
+      later(() => {
+        burst(W * (0.15 + rand() * 0.7), -10, 40 * n, 180, 90, 4);
+        burst(0, H * 0.7, 28 * n, 65, 40, 20);
+        burst(W, H * 0.7, 28 * n, -65, 40, 20);
+      }, i * 450);
+    }
+    if (tier.level >= 4) {
+      for (let i = 0; i < 6 + (tier.level - 4) * 6; i++)
+        later(() => burst(W * (0.15 + rand() * 0.7), H * (0.12 + rand() * 0.4), 90, 0, 360, 11), 300 + i * 330);
+    }
+    partyUntil = performance.now() + 2500 + tier.level * 700;
+  } else {
+    $("spark").style.opacity = 0;
+  }
+  chime(tier.level);
+}
+
+function dismissWin() {
+  clearTimers();
+  win.classList.remove("show", "touched");
+  $("spark").getAnimations().forEach(a => a.cancel());
+}
+win.addEventListener("click", dismissWin);
+addEventListener("keydown", e => { if (e.key === "Escape") dismissWin(); });
+
+// ================= intro =================
+const intro = $("intro");
+function enter() {
+  if (intro.classList.contains("leaving")) return;
+  // this tap is the user gesture the browser needs before any sound can play
+  try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); } catch (e) {}
+  intro.classList.add("leaving");
+  setTimeout(() => intro.remove(), 900);
+}
+intro.addEventListener("click", enter);
+$("enter").focus({ preventScroll: true });
+
+addEventListener("resize", sizeConfetti);
+sizeConfetti();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
